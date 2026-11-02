@@ -14,7 +14,7 @@ export default function AccountBar({ viewer, loginHref }: Props) {
   if (!viewer) {
     return (
       <Button type="primary" icon={<LoginOutlined />} href={loginHref}>
-        เข้าสู่ระบบด้วยบัญชี @sru.ac.th
+        เข้าสู่ระบบด้วยบัญชีมหาวิทยาลัย
       </Button>
     );
   }

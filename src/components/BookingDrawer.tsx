@@ -72,7 +72,7 @@ function PersonWithPhone({ name, phone, loginHref }: { name: string | null; phon
       )}
       {loginHref && (
         <div className="phone-login">
-          <a href={loginHref}>เข้าสู่ระบบด้วยบัญชี @sru.ac.th เพื่อดูเบอร์โทร</a>
+          <a href={loginHref}>เข้าสู่ระบบเพื่อดูเบอร์โทร</a>
         </div>
       )}
     </>
