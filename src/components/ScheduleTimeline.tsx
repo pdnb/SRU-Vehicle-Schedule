@@ -5,14 +5,20 @@ import { useMemo } from "react";
 import dayjs, { formatRange, type Dayjs } from "@/lib/dayjs";
 import { statusLabel, statusStyle } from "@/lib/status";
 import type { Booking, Vehicle } from "@/lib/types";
+import { PlaceList } from "./BookingDrawer";
 
-const HOUR_W = 76;
-const LABEL_W = 200;
-const LANE_H = 40;
+// Minimum hour width; the grid stretches to fill wider screens
+const HOUR_MIN_W = 84;
+const LABEL_W = 240;
+const LANE_H = 50;
 const LANE_GAP = 4;
 const ROW_PAD = 8;
 const DEFAULT_START_HOUR = 6;
 const DEFAULT_END_HOUR = 20;
+// Entrance choreography: rows cascade down, then each bar draws in from its start time
+const ROW_STAGGER_MS = 35;
+const ROW_STAGGER_CAP = 15;
+const BAR_SWEEP_MS = 300;
 
 interface Props {
   date: string;
@@ -77,9 +83,10 @@ export default function ScheduleTimeline({ date, vehicles, bookings, labels, now
     return [Math.floor(min / 60), Math.ceil(max / 60)];
   }, [rows]);
 
-  const trackW = (endHour - startHour) * HOUR_W;
+  const minTrackW = (endHour - startHour) * HOUR_MIN_W;
   const clampMin = (min: number) => Math.min(Math.max(min, startHour * 60), endHour * 60);
-  const toX = (min: number) => ((clampMin(min) - startHour * 60) / 60) * HOUR_W;
+  // Horizontal position as a percentage of the track width
+  const toPct = (min: number) => ((clampMin(min) - startHour * 60) / ((endHour - startHour) * 60)) * 100;
   const hours = Array.from({ length: endHour - startHour }, (_, i) => startHour + i);
 
   const nowMin = now.diff(dayStart, "minute");
@@ -87,29 +94,30 @@ export default function ScheduleTimeline({ date, vehicles, bookings, labels, now
 
   return (
     <div className="tl-scroll" role="region" aria-label="ตารางการใช้รถรายวัน">
-      <div className="tl-inner" style={{ width: LABEL_W + trackW }}>
+      <div className="tl-inner" style={{ minWidth: LABEL_W + minTrackW }}>
         <div className="tl-header">
           <div className="tl-label" style={{ width: LABEL_W }}>
             รถ ({vehicles.length} คัน)
           </div>
-          <div className="tl-hours" style={{ width: trackW }}>
+          <div className="tl-hours">
             {hours.map((h) => (
-              <div key={h} className="tl-hour" style={{ left: toX(h * 60), width: HOUR_W }}>
+              <div key={h} className="tl-hour" style={{ left: `${toPct(h * 60)}%`, width: `${100 / hours.length}%` }}>
                 {String(h).padStart(2, "0")}:00
               </div>
             ))}
             {showNow && (
-              <div className="tl-now-flag" style={{ left: toX(nowMin) }}>
+              <div className="tl-now-flag" style={{ left: `${toPct(nowMin)}%` }}>
                 {now.format("HH:mm")}
               </div>
             )}
           </div>
         </div>
 
-        {rows.map(({ vehicle, placed, lanes }) => {
+        {rows.map(({ vehicle, placed, lanes }, rowIndex) => {
           const height = ROW_PAD * 2 + lanes * LANE_H + (lanes - 1) * LANE_GAP;
+          const rowDelay = Math.min(rowIndex, ROW_STAGGER_CAP) * ROW_STAGGER_MS;
           return (
-            <div className="tl-row" key={vehicle.id}>
+            <div className="tl-row" key={vehicle.id} style={{ animationDelay: `${rowDelay}ms` }}>
               <div className="tl-label" style={{ width: LABEL_W, minHeight: height }}>
                 <span className="tl-plate">{vehicle.licence || vehicle.code}</span>
                 <span className="tl-carname">
@@ -119,13 +127,12 @@ export default function ScheduleTimeline({ date, vehicles, bookings, labels, now
               </div>
               <div
                 className="tl-track"
-                style={{
-                  width: trackW,
-                  height,
-                  backgroundImage: `repeating-linear-gradient(to right, var(--grid-line) 0 1px, transparent 1px ${HOUR_W}px)`,
-                }}
+                style={{ height }}
               >
-                {showNow && <div className="tl-now" style={{ left: toX(nowMin) }} />}
+                {hours.map((h) => (
+                  <div key={h} className="tl-gridline" style={{ left: `${toPct(h * 60)}%` }} />
+                ))}
+                {showNow && <div className="tl-now" style={{ left: `${toPct(nowMin)}%` }} />}
                 {placed.map(({ booking, startMin, endMin, lane, contLeft, contRight }) => {
                   const style = statusStyle(booking.status);
                   const destination = booking.places || booking.location;
@@ -141,7 +148,11 @@ export default function ScheduleTimeline({ date, vehicles, bookings, labels, now
                             <b>{booking.title || booking.code}</b>
                           </div>
                           <div>{formatRange(booking.start, booking.end)}</div>
-                          {destination && <div>ปลายทาง: {destination}</div>}
+                          {destination && (
+                            <div>
+                              ปลายทาง: <PlaceList value={destination} />
+                            </div>
+                          )}
                           {booking.requester && <div>ผู้ขอ: {booking.requester}</div>}
                           {booking.driver && (
                             <div>
@@ -158,14 +169,15 @@ export default function ScheduleTimeline({ date, vehicles, bookings, labels, now
                         className={classes.join(" ")}
                         onClick={() => onSelect(booking)}
                         style={{
-                          left: toX(startMin) + 2,
-                          width: Math.max(toX(endMin) - toX(startMin) - 4, 10),
+                          left: `calc(${toPct(startMin)}% + 2px)`,
+                          width: `max(calc(${toPct(endMin) - toPct(startMin)}% - 4px), 10px)`,
                           top: ROW_PAD + lane * (LANE_H + LANE_GAP),
                           height: LANE_H,
                           color: style.color,
                           background: style.background,
                           borderColor: style.color,
                           borderStyle: style.dashed ? "dashed" : "solid",
+                          animationDelay: `${rowDelay + 120 + (toPct(startMin) / 100) * BAR_SWEEP_MS}ms`,
                         }}
                       >
                         <span className="tl-bar-time">

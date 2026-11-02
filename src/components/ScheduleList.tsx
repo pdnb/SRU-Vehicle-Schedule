@@ -16,18 +16,20 @@ interface Props {
 export default function ScheduleList({ vehicles, bookings, labels, onSelect }: Props) {
   return (
     <Flex vertical gap={10}>
-      {vehicles.map((v) => {
+      {vehicles.map((v, i) => {
         const own = bookings
           .filter((b) => b.vehicleId === v.id)
           .sort((a, b) => a.start.localeCompare(b.start));
         return (
           <Card
             key={v.id}
+            className="ml-card"
+            style={{ animationDelay: `${Math.min(i, 10) * 40}ms` }}
             size="small"
             title={
               <Flex vertical style={{ padding: "6px 0" }}>
                 <span>{v.licence || v.code}</span>
-                <Typography.Text type="secondary" style={{ fontSize: 12, fontWeight: 400 }}>
+                <Typography.Text type="secondary" style={{ fontSize: 14, fontWeight: 400 }}>
                   {v.name}
                   {v.capacity ? ` · ${v.capacity} ที่นั่ง` : ""}
                 </Typography.Text>
@@ -59,7 +61,7 @@ export default function ScheduleList({ vehicles, bookings, labels, onSelect }: P
                 </Flex>
                 <div style={{ marginTop: 2 }}>{b.places || b.location || b.title || b.code}</div>
                 {b.requester && (
-                  <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                  <Typography.Text type="secondary" style={{ fontSize: 14 }}>
                     {b.requester}
                     {b.department ? ` · ${b.department}` : ""}
                   </Typography.Text>

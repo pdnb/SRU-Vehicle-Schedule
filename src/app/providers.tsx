@@ -13,6 +13,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         token: {
           colorPrimary: "#0b4f9c",
           fontFamily: "var(--font-thai), system-ui, sans-serif",
+          fontSize: 16,
           borderRadius: 8,
         },
       }}

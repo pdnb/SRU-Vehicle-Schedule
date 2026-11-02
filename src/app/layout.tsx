@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Sans_Thai } from "next/font/google";
+import { Anuphan } from "next/font/google";
 import { AntdRegistry } from "@ant-design/nextjs-registry";
 import Providers from "./providers";
 import "./globals.css";
 
-const thaiFont = IBM_Plex_Sans_Thai({
+const thaiFont = Anuphan({
   variable: "--font-thai",
   subsets: ["thai", "latin"],
   weight: ["400", "500", "600"],

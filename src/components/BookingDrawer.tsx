@@ -24,6 +24,20 @@ export function StatusTag({ code, labels }: { code: string; labels: Record<strin
 
 const dash = (v: string | number | null | undefined) => (v === null || v === undefined || v === "" ? "–" : v);
 
+/** Booking places arrive joined with ", " (see cleanPlaces); several stops render as bullets. */
+export function PlaceList({ value }: { value: string | null }) {
+  if (!value) return <>–</>;
+  const names = value.split(", ");
+  if (names.length === 1) return <>{value}</>;
+  return (
+    <ul className="place-list">
+      {names.map((name, i) => (
+        <li key={i}>{name}</li>
+      ))}
+    </ul>
+  );
+}
+
 /** PROMIS phone fields are free text and may hold several numbers ("081-..., 077-..."). */
 function PhoneLinks({ value }: { value: string | null }) {
   if (!value) return null;
@@ -77,7 +91,7 @@ export default function BookingDrawer({ booking, vehicle, labels, fullWidth, onC
             { key: "car", label: "รถ", children: vehicle ? `${vehicle.licence || vehicle.code} · ${dash(vehicle.name)}` : booking.vehicleId },
             { key: "time", label: "เวลาไป–กลับ", children: formatRange(booking.start, booking.end) },
             { key: "title", label: "เรื่อง", children: dash(booking.title) },
-            { key: "places", label: "ปลายทาง", children: dash(booking.places) },
+            { key: "places", label: "ปลายทาง", children: <PlaceList value={booking.places} /> },
             { key: "location", label: "สถานที่รับ–ส่ง", children: dash(booking.location) },
             { key: "requester", label: "ผู้ขอ", children: dash(booking.requester) },
             { key: "department", label: "หน่วยงาน", children: dash(booking.department) },

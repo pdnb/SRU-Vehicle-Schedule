@@ -7,11 +7,14 @@ import dayjs, { DATE_PARAM, formatThaiDate, type Dayjs } from "@/lib/dayjs";
 import { DEFAULT_VISIBLE_STATUSES, OCCUPYING_STATUSES, statusLabel, statusStyle } from "@/lib/status";
 import type { Booking, ScheduleResponse, StatusInfo } from "@/lib/types";
 import BookingDrawer from "./BookingDrawer";
+import CountUp from "./CountUp";
 import ScheduleList from "./ScheduleList";
 import ScheduleTimeline from "./ScheduleTimeline";
 import ScheduleToolbar, { type Filters } from "./ScheduleToolbar";
 
 const REFRESH_MS = 5 * 60 * 1000;
+
+const countUp = (value: number | string) => <CountUp value={Number(value)} />;
 
 function parseDateParam(value: string | null): Dayjs {
   if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return dayjs();
@@ -120,6 +123,12 @@ export default function ScheduleApp() {
     return (current?.bookings ?? []).filter((b) => ids.has(b.vehicleId) && filters.statuses.includes(b.status));
   }, [current, vehicles, filters.statuses]);
 
+  // Only vehicles with at least one visible booking get a row
+  const usedVehicles = useMemo(() => {
+    const ids = new Set(bookings.map((b) => b.vehicleId));
+    return vehicles.filter((v) => ids.has(v.id));
+  }, [vehicles, bookings]);
+
   const stats = useMemo(() => {
     const inUse = new Set(
       bookings
@@ -187,47 +196,43 @@ export default function ScheduleApp() {
 
       {current && (
         <>
-          <Row gutter={[12, 12]} style={{ marginBottom: 12 }}>
-            <Col xs={12} md={6}>
-              <Card size="small">
-                <Statistic title="รถทั้งหมด" value={stats.total} suffix="คัน" />
-              </Card>
-            </Col>
-            <Col xs={12} md={6}>
+          <Row className="stats" gutter={[12, 12]} style={{ marginBottom: 12 }}>
+            <Col xs={12} md={8}>
               <Card size="small">
                 {isToday ? (
-                  <Statistic title="กำลังใช้งานตอนนี้" value={stats.inUse} suffix="คัน" valueStyle={{ color: statusStyle("A").color }} />
+                  <Statistic title="กำลังใช้งานตอนนี้" value={stats.inUse} formatter={countUp} suffix="คัน" valueStyle={{ color: statusStyle("A").color }} />
                 ) : (
-                  <Statistic title="รถที่มีการจอง" value={stats.total - stats.freeAllDay} suffix="คัน" valueStyle={{ color: statusStyle("A").color }} />
+                  <Statistic title="รถที่มีการจอง" value={stats.total - stats.freeAllDay} formatter={countUp} suffix="คัน" valueStyle={{ color: statusStyle("A").color }} />
                 )}
               </Card>
             </Col>
-            <Col xs={12} md={6}>
+            <Col xs={12} md={8}>
               <Card size="small">
-                <Statistic title="ว่างทั้งวัน" value={stats.freeAllDay} suffix="คัน" valueStyle={{ color: statusStyle("S").color }} />
+                <Statistic title="ว่างทั้งวัน" value={stats.freeAllDay} formatter={countUp} suffix="คัน" valueStyle={{ color: statusStyle("S").color }} />
               </Card>
             </Col>
-            <Col xs={12} md={6}>
+            <Col xs={24} md={8}>
               <Card size="small">
                 <Statistic
                   title="รายการจอง"
                   value={stats.bookings}
-                  suffix={stats.pending ? <span style={{ fontSize: 13, color: statusStyle("W").color }}>{statusLabel(labels, "W")} {stats.pending}</span> : "รายการ"}
+                  formatter={countUp}
+                  suffix={stats.pending ? <span style={{ fontSize: 15, color: statusStyle("W").color }}>{statusLabel(labels, "W")} {stats.pending}</span> : "รายการ"}
                 />
               </Card>
             </Col>
           </Row>
 
-          {vehicles.length === 0 ? (
+          {usedVehicles.length === 0 ? (
             <Card>
-              <Empty description="ไม่พบรถตามเงื่อนไขที่เลือก" />
+              <Empty description="ไม่มีรถที่มีการใช้งานตามเงื่อนไขที่เลือก" />
             </Card>
           ) : isMobile ? (
-            <ScheduleList vehicles={vehicles} bookings={bookings} labels={labels} onSelect={setSelected} />
+            <ScheduleList vehicles={usedVehicles} bookings={bookings} labels={labels} onSelect={setSelected} />
           ) : (
             <ScheduleTimeline
               date={dateKey}
-              vehicles={vehicles}
+              vehicles={usedVehicles}
               bookings={bookings}
               labels={labels}
               now={now}
@@ -235,7 +240,7 @@ export default function ScheduleApp() {
             />
           )}
 
-          {!isMobile && vehicles.length > 0 && (
+          {!isMobile && usedVehicles.length > 0 && (
             <div className="legend" aria-label="คำอธิบายสี">
               {statusOptions
                 .filter((s) => filters.statuses.includes(s.code))

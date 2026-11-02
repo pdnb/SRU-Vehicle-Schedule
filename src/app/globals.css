@@ -4,6 +4,7 @@
   --grid-line-strong: #dfe4ec;
   --label-bg: #ffffff;
   --now: #e5484d;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 * {
@@ -22,9 +23,7 @@ body {
 /* ---------- page ---------- */
 
 .page {
-  max-width: 1440px;
-  margin: 0 auto;
-  padding: 20px 16px 48px;
+  padding: 20px 24px 48px;
 }
 
 .page-head {
@@ -38,14 +37,14 @@ body {
 
 .page-title {
   margin: 0;
-  font-size: 24px;
+  font-size: 30px;
   font-weight: 600;
   color: #0f1f3a;
 }
 
 .page-date {
   margin: 2px 0 0;
-  font-size: 15px;
+  font-size: 18px;
   color: #5b6475;
 }
 
@@ -54,7 +53,7 @@ body {
   flex-wrap: wrap;
   gap: 6px 16px;
   margin-top: 12px;
-  font-size: 13px;
+  font-size: 15px;
   color: #5b6475;
 }
 
@@ -114,14 +113,14 @@ body {
 
 .tl-header .tl-label {
   background: #fafbfd;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 500;
   color: #5b6475;
 }
 
 .tl-plate {
   font-weight: 600;
-  font-size: 14px;
+  font-size: 17px;
   color: #0f1f3a;
   white-space: nowrap;
   overflow: hidden;
@@ -129,7 +128,7 @@ body {
 }
 
 .tl-carname {
-  font-size: 12px;
+  font-size: 14px;
   color: #6b7383;
   white-space: nowrap;
   overflow: hidden;
@@ -138,8 +137,8 @@ body {
 
 .tl-hours {
   position: relative;
-  height: 34px;
-  flex: none;
+  height: 38px;
+  flex: 1 1 auto;
 }
 
 .tl-hour {
@@ -147,7 +146,7 @@ body {
   top: 0;
   bottom: 0;
   padding: 8px 0 0 6px;
-  font-size: 12px;
+  font-size: 14px;
   color: #6b7383;
   border-left: 1px solid var(--grid-line-strong);
   font-variant-numeric: tabular-nums;
@@ -155,7 +154,16 @@ body {
 
 .tl-track {
   position: relative;
-  flex: none;
+  flex: 1 1 auto;
+}
+
+.tl-gridline {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--grid-line);
+  pointer-events: none;
 }
 
 .tl-now {
@@ -167,6 +175,7 @@ body {
   background: var(--now);
   z-index: 2;
   pointer-events: none;
+  transition: left 0.8s var(--ease-out);
 }
 
 .tl-now-flag {
@@ -177,11 +186,21 @@ body {
   border-radius: 4px;
   background: var(--now);
   color: #fff;
-  font-size: 11px;
-  line-height: 18px;
+  font-size: 13px;
+  line-height: 20px;
   z-index: 4;
   pointer-events: none;
   font-variant-numeric: tabular-nums;
+  transition: left 0.8s var(--ease-out);
+}
+
+/* A slow ring so the current time is findable at a glance on a wall display */
+.tl-now-flag::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  animation: tl-now-pulse 2.4s ease-out infinite;
 }
 
 .tl-bar {
@@ -197,14 +216,22 @@ body {
   cursor: pointer;
   overflow: hidden;
   z-index: 1;
-  transition: box-shadow 0.15s, transform 0.15s;
+  transition: box-shadow 0.18s var(--ease-out), transform 0.18s var(--ease-out);
+  animation: tl-bar-in 0.55s var(--ease-out) backwards;
 }
 
 .tl-bar:hover,
 .tl-bar:focus-visible {
-  box-shadow: 0 2px 8px rgba(15, 31, 58, 0.18);
+  box-shadow: 0 4px 12px rgba(15, 31, 58, 0.18);
+  transform: translateY(-1px);
   z-index: 3;
   outline: none;
+}
+
+.tl-bar:active {
+  transform: translateY(0) scale(0.99);
+  box-shadow: 0 1px 4px rgba(15, 31, 58, 0.16);
+  transition-duration: 0.06s;
 }
 
 .tl-bar--cont-left {
@@ -220,7 +247,7 @@ body {
 }
 
 .tl-bar-time {
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   line-height: 1.3;
   white-space: nowrap;
@@ -228,7 +255,7 @@ body {
 }
 
 .tl-bar-text {
-  font-size: 12px;
+  font-size: 15px;
   line-height: 1.3;
   color: #2b3445;
   white-space: nowrap;
@@ -236,10 +263,99 @@ body {
   text-overflow: ellipsis;
 }
 
+.place-list {
+  margin: 0;
+  padding-left: 1.2em;
+}
+
 /* ---------- mobile list ---------- */
 
 .ml-time {
   font-weight: 600;
-  font-size: 13px;
+  font-size: 16px;
   font-variant-numeric: tabular-nums;
+}
+
+/* ---------- motion ---------- */
+
+/* Entrances use fill-mode "backwards" so nothing (clip-path, transform) lingers after they finish,
+   which would clip hover shadows or pin sticky labels. Per-item delays are set inline. */
+
+.tl-row,
+.ml-card {
+  animation: rise-in 0.4s var(--ease-out) backwards;
+}
+
+.stats > .ant-col {
+  animation: rise-in 0.4s var(--ease-out) backwards;
+}
+
+.stats > .ant-col:nth-child(2) {
+  animation-delay: 60ms;
+}
+
+.stats > .ant-col:nth-child(3) {
+  animation-delay: 120ms;
+}
+
+.legend {
+  animation: fade-in 0.4s ease-out 0.5s backwards;
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Bars draw in left-to-right, like time passing */
+@keyframes tl-bar-in {
+  from {
+    clip-path: inset(0 100% 0 0);
+    opacity: 0.3;
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+    opacity: 1;
+  }
+}
+
+@keyframes tl-now-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(229, 72, 77, 0.45);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 8px rgba(229, 72, 77, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tl-row,
+  .ml-card,
+  .stats > .ant-col,
+  .legend,
+  .tl-bar,
+  .tl-now-flag::after {
+    animation: none;
+  }
+
+  .tl-bar,
+  .tl-now,
+  .tl-now-flag {
+    transition: none;
+  }
+
+  .tl-bar:hover,
+  .tl-bar:focus-visible,
+  .tl-bar:active {
+    transform: none;
+  }
 }
