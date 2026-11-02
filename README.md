@@ -1,36 +1,95 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ตารางการใช้รถ (SRU Vehicle Schedule)
 
-## Getting Started
+หน้าเว็บแสดงตารางการใช้รถรายวัน แยกตามคัน อ่านข้อมูลจาก Oracle PROMIS (อ่านอย่างเดียว)
+Next.js 15 + Ant Design 5 + node-oracledb
 
-First, run the development server:
+## เริ่มใช้งาน
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env.local   # กรอกค่าเชื่อมต่อ Oracle
+npm run dev                  # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+ถ้า `USE_MOCK=1` หรือยังไม่ได้ตั้ง `ORACLE_CONNECT_STRING` หน้าเว็บจะแสดงข้อมูลตัวอย่าง (มีป้าย "ข้อมูลตัวอย่าง")
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## แหล่งข้อมูลใน PROMIS
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+SQL ทั้งหมดอยู่ใน `src/lib/queries.ts`
 
-## Learn More
+| ข้อมูล | ตาราง/วิว |
+|---|---|
+| รถ | `CAR` (เฉพาะ `CANBOOKING = 'Y'`) + `CAMPUS` |
+| การจอง | `V_BUL_CARBOOKINGITEM` + `BUL_CARBOOKING` + `DEPARTMENT` + `BUL_CARBOOKINGPLACE` |
+| เบอร์โทร | ผู้รับผิดชอบ `BUL_CARBOOKING.UNDERTAKERPHONENO`, คนขับ `BUL_CARDRIVER.PHONENO` |
+| ชื่อสถานะ | `SYSBYTEDES` (`ROOMBOOKING` / `ROOMBOOKINGSTATUS`) |
+| ประเภทรถ | `SYSBYTEDES` (`CAR` / `CARTYPE`) ถ้าไม่มีจะแสดงเป็นรหัส |
 
-To learn more about Next.js, take a look at the following resources:
+ค่าเริ่มต้นจะแสดงเฉพาะสถานะ `S` (อนุมัติ/ส่งรายการ) เลือกดูสถานะอื่น (`W` ทำการ, `A` บันทึก, `V` ยกเลิก) ได้จากตัวกรองสถานะ
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## API
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+`GET /api/schedule?date=YYYY-MM-DD` → `{ date, source, vehicles, bookings, statuses }`
 
-## Deploy on Vercel
+`GET /api/health` → สถานะของแอป (ใช้เป็น healthcheck) · `GET /api/health?db=1` → ตรวจการเชื่อมต่อ PROMIS ด้วย
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Deploy บน Coolify
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+แอปมี `Dockerfile` แบบ multi-stage (Next.js standalone + Oracle Instant Client 21.19 สำหรับ Thick mode) และ healthcheck ในตัว
+
+### ตั้งค่าใน Coolify
+
+1. **New Resource → Application** แล้วเลือก repository นี้
+2. **Build Pack:** `Dockerfile` (ไม่ใช่ Nixpacks — Nixpacks ไม่ติดตั้ง Oracle Instant Client ให้)
+3. **Ports Exposes:** `3000`
+4. **Health Check:** path `/api/health`
+5. **Environment Variables** (ติ๊ก *Is Secret* ที่ `ORACLE_PASSWORD`):
+
+   | ตัวแปร | ค่า |
+   |---|---|
+   | `USE_MOCK` | `0` |
+   | `ORACLE_USER` | บัญชีที่มีสิทธิ์ SELECT อย่างเดียว |
+   | `ORACLE_PASSWORD` | รหัสผ่าน |
+   | `ORACLE_CONNECT_STRING` | `<promis_host>:1521/<service_name>` |
+   | `ORACLE_SCHEMA` | `PROMIS` |
+
+   **ไม่ต้อง** ตั้ง `ORACLE_CLIENT_DIR` — image ตั้งไว้แล้วเป็น `/opt/oracle/instantclient` (ถ้าคัดลอกค่า Windows จาก `.env.local` ไปใส่ แอปจะหา Oracle Client ไม่เจอ)
+
+6. Deploy แล้วเปิด `https://<domain>/api/health?db=1` ต้องได้ `"db":"ok"`
+
+### ⚠️ ปัญหา subnet ชนกับ PROMIS (ต้องตรวจก่อน deploy)
+
+IP ของ PROMIS อยู่ในช่วงเดียวกับที่ Docker แจกให้ network ภายใน (`172.17.0.0/16`–`172.31.0.0/16`)
+ถ้าบนเครื่อง Coolify มี Docker network ที่ subnet ครอบ IP ของ PROMIS เครื่องนั้นจะ route traffic ไป PROMIS เข้า bridge ของ Docker เอง container ทุกตัวจึงต่อ PROMIS ไม่ได้ (อาการ: `NJS-040 connection request timeout`)
+network ที่สร้างก่อนๆ บนเครื่องใหม่มักได้ subnet ช่วง `172.18.0.0/16` ขึ้นไป — รวมถึง network `coolify` ด้วย
+
+ตรวจบนเครื่อง Coolify (แทน `<promis_host>` ด้วย IP ของ PROMIS):
+
+```bash
+ip route get <promis_host>
+```
+
+```bash
+for n in $(docker network ls -q); do docker network inspect -f '{{.Name}} {{range .IPAM.Config}}{{.Subnet}}{{end}}' $n; done
+```
+
+ถ้า `ip route get` ตอบว่าออกทาง `dev br-...` หรือ `dev docker0` (แทนที่จะเป็น interface ของเครื่อง เช่น `eth0`) แสดงว่าชน วิธีแก้ (ทำช่วงที่หยุดระบบได้ เพราะต้อง restart Docker และสร้าง network ที่ชนใหม่):
+
+1. เพิ่มใน `/etc/docker/daemon.json` (รวมกับ key เดิมที่มีอยู่ อย่าเขียนทับทั้งไฟล์)
+   ```json
+   { "default-address-pools": [{ "base": "10.201.0.0/16", "size": 24 }] }
+   ```
+2. `sudo systemctl restart docker`
+3. ลบแล้วสร้าง network ที่ subnet ครอบ IP ของ PROMIS ใหม่ (ต้องหยุด container ที่อยู่ใน network นั้นก่อน) เพื่อให้ได้ subnet ใหม่จากช่วง `10.201.x.x`
+4. ตรวจซ้ำด้วย `ip route get <promis_host>` ว่าออกทาง interface ของเครื่องแล้ว
+
+### หมายเหตุด้านความปลอดภัย
+
+หน้าเว็บไม่มีระบบล็อกอินและแสดงชื่อ/เบอร์โทรบุคลากร ถ้าเปิด domain สู่สาธารณะ ควรจำกัดการเข้าถึง เช่น ให้เข้าได้เฉพาะเครือข่ายมหาวิทยาลัย หรือเปิด Basic Auth ที่ proxy
+
+## หมายเหตุ
+
+- ใช้บัญชี Oracle ที่มีสิทธิ์ SELECT เท่านั้น
+- PROMIS เป็น Oracle รุ่นเก่ากว่า 12.1 ซึ่ง Thin mode ต่อไม่ได้ (NJS-138) จึงต้องติดตั้ง Oracle Instant Client แล้วตั้ง `ORACLE_CLIENT_DIR` (บน Windows ใช้ Instant Client ที่ติดตั้งไว้ เช่น `C:/Oracle/instantclient_12_2`; ใน Docker image ตั้งให้แล้ว)
+- ใช้ Instant Client 21 เพราะเป็นรุ่นล่าสุดที่ยังรองรับฐานข้อมูล 11.2 และต้องเป็นแพ็กเกจ `basic` (ไม่ใช่ `basiclite`) เพื่อรองรับ character set ภาษาไทย
+- เวลาจาก PROMIS เป็นเวลาท้องถิ่น (ไม่มี timezone) จึงส่งเป็นสตริง `YYYY-MM-DDTHH:mm:ss`
