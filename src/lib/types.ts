@@ -40,10 +40,22 @@ export interface StatusInfo {
   label: string;
 }
 
-export interface ScheduleResponse {
+export interface ScheduleData {
   date: string;
   source: "mock" | "promis";
   vehicles: Vehicle[];
   bookings: Booking[];
   statuses: StatusInfo[];
+}
+
+export interface ScheduleResponse extends ScheduleData {
+  /** true when the viewer may not see phone numbers, so they were removed server-side */
+  phonesHidden: boolean;
+}
+
+/** The signed-in user as passed to the client. */
+export interface Viewer {
+  name: string | null;
+  email: string | null;
+  canViewPhones: boolean;
 }
