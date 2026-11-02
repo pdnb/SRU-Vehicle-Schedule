@@ -29,7 +29,32 @@ SQL ทั้งหมดอยู่ใน `src/lib/queries.ts`
 
 ## API
 
-`GET /api/schedule?date=YYYY-MM-DD` → `{ date, source, vehicles, bookings, statuses }`
+`GET /api/schedule?date=YYYY-MM-DD` → `{ date, source, vehicles, bookings, statuses, phonesHidden }`
+
+ถ้าผู้เรียกไม่ได้ล็อกอินด้วยอีเมล @sru.ac.th ที่ยืนยันแล้ว จะได้ `phonesHidden: true` และ `driverPhone`, `undertakerPhone`, `contact` ของทุกรายการจะเป็น `null` เพราะถูกตัดออกที่ server
+
+## ล็อกอินด้วย Auth0 (ดูเบอร์โทร)
+
+ตารางการใช้รถเปิดดูได้โดยไม่ต้องล็อกอิน แต่เบอร์โทรคนขับ/ผู้รับผิดชอบ และช่อง "ติดต่อผู้ขอ" จะแสดงเฉพาะผู้ที่ล็อกอินด้วยอีเมล `@sru.ac.th` ที่ยืนยันแล้ว (`email_verified`) กฎนี้อยู่ใน `src/lib/auth0.ts`
+แอปใช้ `@auth0/nextjs-auth0` v4 โดย `src/middleware.ts` สร้าง route `/auth/login`, `/auth/logout`, `/auth/callback` ให้
+
+ตั้งค่าใน Auth0 Dashboard:
+
+1. **Applications → Create Application → Regular Web Application** แล้วนำ Domain, Client ID, Client Secret ไปใส่ใน `AUTH0_DOMAIN`, `AUTH0_CLIENT_ID`, `AUTH0_CLIENT_SECRET`
+2. ใน Settings ของแอป ให้ตั้ง
+   - **Allowed Callback URLs:** `http://localhost:3000/auth/callback, https://<domain>/auth/callback`
+   - **Allowed Logout URLs:** `http://localhost:3000, https://<domain>`
+3. **Connections:** แนะนำให้เปิดเฉพาะ Google (Google Workspace ของ sru.ac.th) เพื่อให้ผู้ใช้ล็อกอินด้วยบัญชีมหาวิทยาลัยได้ทันที
+4. (แนะนำ) **Actions → Triggers → post-login:** เพิ่ม Action ที่ปฏิเสธบัญชีโดเมนอื่นตั้งแต่ตอนล็อกอิน แอปตรวจโดเมนเองอยู่แล้ว แต่ Action จะช่วยไม่ให้มีบัญชีโดเมนอื่นเข้ามาใน tenant
+   ```js
+   exports.onExecutePostLogin = async (event, api) => {
+     const email = (event.user.email || "").toLowerCase();
+     if (!event.user.email_verified || !email.endsWith("@sru.ac.th")) {
+       api.access.deny("ใช้ได้เฉพาะบัญชี @sru.ac.th");
+     }
+   };
+   ```
+5. สร้าง `AUTH0_SECRET` ด้วย `openssl rand -hex 32` และตั้ง `APP_BASE_URL` เป็น URL ของเว็บ
 
 `GET /api/health` → สถานะของแอป (ใช้เป็น healthcheck) · `GET /api/health?db=1` → ตรวจการเชื่อมต่อ PROMIS ด้วย
 
@@ -43,7 +68,7 @@ SQL ทั้งหมดอยู่ใน `src/lib/queries.ts`
 2. **Build Pack:** `Dockerfile` (ไม่ใช่ Nixpacks — Nixpacks ไม่ติดตั้ง Oracle Instant Client ให้)
 3. **Ports Exposes:** `3000`
 4. **Health Check:** path `/api/health`
-5. **Environment Variables** (ติ๊ก *Is Secret* ที่ `ORACLE_PASSWORD`):
+5. **Environment Variables** (ติ๊ก *Is Secret* ที่ `ORACLE_PASSWORD`, `AUTH0_CLIENT_SECRET`, `AUTH0_SECRET`):
 
    | ตัวแปร | ค่า |
    |---|---|
@@ -52,6 +77,11 @@ SQL ทั้งหมดอยู่ใน `src/lib/queries.ts`
    | `ORACLE_PASSWORD` | รหัสผ่าน |
    | `ORACLE_CONNECT_STRING` | `<promis_host>:1521/<service_name>` |
    | `ORACLE_SCHEMA` | `PROMIS` |
+   | `AUTH0_DOMAIN` | เช่น `<tenant>.us.auth0.com` |
+   | `AUTH0_CLIENT_ID` | Client ID ของแอปใน Auth0 |
+   | `AUTH0_CLIENT_SECRET` | Client Secret ของแอปใน Auth0 |
+   | `AUTH0_SECRET` | ผลจาก `openssl rand -hex 32` (ห้ามใช้ค่าเดียวกับเครื่อง dev) |
+   | `APP_BASE_URL` | `https://<domain>` |
 
    **ไม่ต้อง** ตั้ง `ORACLE_CLIENT_DIR` — image ตั้งไว้แล้วเป็น `/opt/oracle/instantclient` (ถ้าคัดลอกค่า Windows จาก `.env.local` ไปใส่ แอปจะหา Oracle Client ไม่เจอ)
 
@@ -85,7 +115,7 @@ for n in $(docker network ls -q); do docker network inspect -f '{{.Name}} {{rang
 
 ### หมายเหตุด้านความปลอดภัย
 
-หน้าเว็บไม่มีระบบล็อกอินและแสดงชื่อ/เบอร์โทรบุคลากร ถ้าเปิด domain สู่สาธารณะ ควรจำกัดการเข้าถึง เช่น ให้เข้าได้เฉพาะเครือข่ายมหาวิทยาลัย หรือเปิด Basic Auth ที่ proxy
+เบอร์โทรถูกจำกัดให้เฉพาะผู้ล็อกอินด้วยบัญชี @sru.ac.th (ดูหัวข้อ "ล็อกอินด้วย Auth0") แต่ชื่อบุคลากร หน่วยงาน และปลายทางยังเปิดให้ทุกคนเห็น ถ้าไม่ต้องการให้คนนอกเห็นข้อมูลเหล่านี้ ควรจำกัดการเข้าถึงเพิ่ม เช่น ให้เข้าได้เฉพาะเครือข่ายมหาวิทยาลัย
 
 ## หมายเหตุ
 

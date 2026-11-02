@@ -1,4 +1,4 @@
-import type { Booking, ScheduleResponse, StatusInfo, Vehicle } from "./types";
+import type { Booking, ScheduleData, StatusInfo, Vehicle } from "./types";
 
 const vehicles: Vehicle[] = [
   { id: 1, code: "V001", name: "รถตู้ Toyota Commuter", licence: "นข 1234 สฎ", capacity: 12, brand: "Toyota", carType: "รถตู้", campus: "ส่วนกลาง" },
@@ -48,7 +48,7 @@ function shift(date: string, days: number): string {
 }
 
 /** Sample data built around the requested date so every day has something to show. */
-export function mockSchedule(date: string): ScheduleResponse {
+export function mockSchedule(date: string): ScheduleData {
   // Rotate which templates appear so neighbouring days look different
   const seed = Number(date.replaceAll("-", "")) % templates.length;
   const bookings: Booking[] = templates

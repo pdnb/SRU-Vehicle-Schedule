@@ -5,7 +5,8 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import dayjs, { DATE_PARAM, formatThaiDate, type Dayjs } from "@/lib/dayjs";
 import { DEFAULT_VISIBLE_STATUSES, OCCUPYING_STATUSES, statusLabel, statusStyle } from "@/lib/status";
-import type { Booking, ScheduleResponse, StatusInfo } from "@/lib/types";
+import type { Booking, ScheduleResponse, StatusInfo, Viewer } from "@/lib/types";
+import AccountBar from "./AccountBar";
 import BookingDrawer from "./BookingDrawer";
 import CountUp from "./CountUp";
 import ScheduleList from "./ScheduleList";
@@ -22,7 +23,7 @@ function parseDateParam(value: string | null): Dayjs {
   return d.isValid() ? d : dayjs();
 }
 
-export default function ScheduleApp() {
+export default function ScheduleApp({ viewer }: { viewer: Viewer | null }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -145,6 +146,12 @@ export default function ScheduleApp() {
     };
   }, [vehicles, bookings, now]);
 
+  const currentQuery = searchParams.toString();
+  const loginParams = new URLSearchParams({ returnTo: currentQuery ? `${pathname}?${currentQuery}` : pathname });
+  // Signed in with another domain: force the Auth0 login screen instead of silently reusing that account
+  if (viewer) loginParams.set("prompt", "login");
+  const loginHref = `/auth/login?${loginParams}`;
+
   const isToday = date.isSame(now, "day");
   const selectedVehicle = selected ? current?.vehicles.find((v) => v.id === selected.vehicleId) : undefined;
 
@@ -162,7 +169,23 @@ export default function ScheduleApp() {
             )}
           </p>
         </div>
+        <AccountBar viewer={viewer} loginHref={loginHref} />
       </header>
+
+      {viewer && !viewer.canViewPhones && (
+        <Alert
+          type="warning"
+          showIcon
+          message={`บัญชี ${viewer.email ?? ""} ไม่สามารถดูเบอร์โทรได้`}
+          description="ต้องเข้าสู่ระบบด้วยอีเมล @sru.ac.th ที่ยืนยันแล้วเท่านั้น"
+          action={
+            <Button size="small" href={loginHref}>
+              เปลี่ยนบัญชี
+            </Button>
+          }
+          style={{ marginBottom: 12 }}
+        />
+      )}
 
       <ScheduleToolbar
         date={date}
@@ -272,6 +295,8 @@ export default function ScheduleApp() {
         vehicle={selectedVehicle}
         labels={labels}
         fullWidth={isMobile}
+        phonesHidden={current?.phonesHidden ?? true}
+        loginHref={loginHref}
         onClose={() => setSelected(null)}
       />
     </main>

@@ -1,7 +1,7 @@
 import "server-only";
 import { promisSchema, query } from "./db";
 import { mockSchedule } from "./mock";
-import type { Booking, ScheduleResponse, StatusInfo, Vehicle } from "./types";
+import type { Booking, ScheduleData, StatusInfo, Vehicle } from "./types";
 
 // All PROMIS SQL lives here. Tables/views come from PROMIS.sql:
 //   CAR, CAMPUS, DEPARTMENT, REFER, SYSBYTEDES, BUL_CARBOOKING, BUL_CARBOOKINGPLACE,
@@ -118,7 +118,7 @@ export function isMockMode(): boolean {
   return process.env.USE_MOCK === "1" || !process.env.ORACLE_CONNECT_STRING;
 }
 
-export async function getSchedule(date: string): Promise<ScheduleResponse> {
+export async function getSchedule(date: string): Promise<ScheduleData> {
   if (isMockMode()) return mockSchedule(date);
 
   const schema = promisSchema();

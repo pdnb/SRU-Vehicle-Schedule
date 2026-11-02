@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { canViewPhones, getViewerSession, redactContacts } from "@/lib/auth0";
 import { getSchedule } from "@/lib/queries";
+import type { ScheduleResponse } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -21,8 +23,15 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const data = await getSchedule(date);
-    return NextResponse.json(data, { headers: { "Cache-Control": "no-store" } });
+    const [data, session] = await Promise.all([getSchedule(date), getViewerSession()]);
+    const phonesHidden = !canViewPhones(session?.user);
+    const body: ScheduleResponse = {
+      ...data,
+      bookings: phonesHidden ? redactContacts(data.bookings) : data.bookings,
+      phonesHidden,
+    };
+    // The body depends on who is signed in, so no shared caches
+    return NextResponse.json(body, { headers: { "Cache-Control": "private, no-store" } });
   } catch (err) {
     console.error("[schedule] PROMIS query failed:", err);
     // Show the Oracle/driver code (e.g. NJS-138, ORA-12541) outside production to speed up setup
